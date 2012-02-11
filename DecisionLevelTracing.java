@@ -56,6 +56,7 @@ public class DecisionLevelTracing implements SearchListener {
 	private int numBranches;
 	private int branchCount;
 	private int haltLevel;
+	private boolean tracing;
 
 	public DecisionLevelTracing(/* String filename, */int numBranches,
 			int haltLevel) {
@@ -64,7 +65,12 @@ public class DecisionLevelTracing implements SearchListener {
 		this.haltLevel = haltLevel;
 		branchCount = 0;
 		assignments = new ArrayList<int[]>();
+		tracing = false;
 		/* updateWriter(); */
+	}
+	
+	public void setTracing(boolean tracing) {
+		this.tracing = tracing;
 	}
 
 	/*
@@ -130,6 +136,7 @@ public class DecisionLevelTracing implements SearchListener {
 	}
 
 	public void restarting() {
+		if(tracing) {
 		int decisionLevel = service.currentDecisionLevel();
 		if (decisionLevel == haltLevel) {
 			int[] vals = new int[0];
@@ -156,6 +163,7 @@ public class DecisionLevelTracing implements SearchListener {
 		}
 		if (branchCount == numBranches) {
 			service.stop();
+		}
 		}
 	}
 
