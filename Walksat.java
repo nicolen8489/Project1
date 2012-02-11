@@ -23,6 +23,8 @@ public class Walksat {
   public static native void setNumberOfSolutions(int num);
 
   public static native void setNumberOfTries(int tries);
+  
+//  public static native void reset();
 
   static {
     System.loadLibrary("walksat");
@@ -62,15 +64,18 @@ public class Walksat {
         // we've reached the time out so now we want to run walk sat on our branch
         if (tracing != null && problem != null) {
           int nextLit = Math.abs(((Solver)solver).getNextBranchLiteral());
-          ArrayList<int[]> assignments = tracing.getAssignments();
+//         ArrayList<int[]> assignments = tracing.getAssignments();
           System.out.println("We are going to branch on " + nextLit);
-          int[] val = Arrays.copyOf(assignments.get(0), assignments.get(0).length + 1);
-          /* 		    int[] temp = new int[10];
-           		    for(int i = 1; i <= 10; i++) {
-                               temp[i-1] = i % 2 == 0 ? -i : i;
-                             }*/
+//          int[] val = Arrays.copyOf(assignments.get(0), assignments.get(0).length + 1);
           setNumberOfSolutions(1);
-          val[val.length - 1] = -nextLit;
+           		    int[] temp = new int[4];
+           		    for(int i = 1; i <= 4; i++) {
+                               temp[i-1] = i % 2 == 0 ? -i : i;
+                               System.out.print(temp[i-1] + " -- ");
+                             }
+	System.out.println();
+          boolean satisfied = runWalkSat(args[0].toCharArray(), temp, temp.length);
+/*          val[val.length - 1] = -nextLit;
           boolean satisfied = runWalkSat(args[0].toCharArray(), val, val.length);
           if (satisfied) {
             System.out.println("SATISFIABLE");
@@ -82,7 +87,8 @@ public class Walksat {
             System.out.println("SATISFIABLE");
           }
           double stat1 = getMaxPercentageSatisfiedClauses();
-          if (stat0 > stat1) {
+          System.out.println(stat0 + " -- " + stat1);
+          /*if (stat0 > stat1) {
             val[val.length - 1] = -nextLit;
           }
           VecInt assumps = new VecInt(val);
@@ -94,7 +100,7 @@ public class Walksat {
             }
           } catch (TimeoutException f) {
             f.printStackTrace();
-          }
+          }*/
         }
       }
       System.out.println("DONE");

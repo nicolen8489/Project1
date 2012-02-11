@@ -395,7 +395,7 @@ void print_sol_cnf(void);
 //int main(int argc,char *argv[])
 int runWalksat(int argc, char *argv[], int partialAssignment[], int length) 
 {
-   printf("run");
+   reset();
 #if UNIX 
     ticks_per_second = sysconf(_SC_CLK_TCK);
     gettimeofday(&tv,&tzp);
@@ -407,16 +407,17 @@ int runWalksat(int argc, char *argv[], int partialAssignment[], int length)
 #if ANSI
     seed = (unsigned int)(time());
 #endif
-    printf("parsing\n");
     parse_parameters(argc, argv);
     srandom(seed);
-    print_parameters(argc, argv);
+    //print_parameters(argc, argv);
     initprob();
     initialize_statistics();
+    printf("test5 = %d", numtry);
     print_statistics_header();
     signal(SIGINT, handle_interrupt);
     abort_flag = FALSE;
     (void) elapsed_seconds();
+    printf("%d -- %d -- %d -- %d -- %d", abort_flag, numsuccesstry, numsol, numtry, numrun);
 
     while (! abort_flag && numsuccesstry < numsol && numtry < numrun) {
 	numtry++;
@@ -427,13 +428,21 @@ int runWalksat(int argc, char *argv[], int partialAssignment[], int length)
         // nicolen
           setPartialAssignment(partialAssignment, length);
         }
+        printf("atoms %d %d %d %d", atom[1], atom[2], atom[3], atom[4]);
 	  
-	if (superlinear) cutoff = base_cutoff * super(numtry);
+	//if (superlinear) cutoff = base_cutoff * super(numtry);
+        cutoff = 10;
 
 	while((numfalse > target) && (numflip < cutoff)) {
-	    print_statistics_start_flip();
+        printf("atoms %d %d %d %d", atom[1], atom[2], atom[3], atom[4]);
+	    //print_statistics_start_flip();
 	    numflip++;
-	    flipatom((pickcode[heuristic])());
+            int toflip = (pickcode[heuristic])();
+            printf("val - %d ", atom[toflip]);
+	    //flipatom((pickcode[heuristic])());
+            flipatom(toflip);
+            printf("flip %d - %d ", toflip, numflip); 
+            printf("val - %d \n", atom[toflip]);
 	    update_statistics_end_flip();
 	}
 	update_and_print_statistics_end_try();
@@ -451,12 +460,10 @@ void parse_parameters(int argc,char *argv[])
     int i;
     int temp;
 
-    printf("file %s\n", argv[1]);
     cnfStream = stdin;
     for (i=1;i < argc;i++)
     {
 	if (argv[i][0] != '-' && cnfStream == stdin){
-            printf("file %s\n", argv[i]);
             cnfStream = fopen(argv[i],"r");
             if (cnfStream == NULL){
                 fprintf(stderr, "Cannot open file named %s\n", argv[i]);
@@ -1274,6 +1281,7 @@ void initprob(void)
 /* new flipping function based on SAT2004 submission work */
 void flipatom(int toflip)
 {
+    printf("other flip");
     int i, j;			
     int toenforce;		
     register int cli;
@@ -1409,6 +1417,7 @@ void flipatom(int toflip)
 */
 void flipatom(int toflip)
 {
+//   printf("test partial - %d - %d", toflip, partialAssignment[toflip]);
    if(partialAssignment[toflip]) {
      partialFlipAttempt++;
      if(partialFlipAttempt % partialFlipInc > 0) {
@@ -1416,6 +1425,7 @@ void flipatom(int toflip)
      }
      return;
    }
+   printf("continuing outside of if");
     int i, j;			
     int toenforce;		
     register int cli;
@@ -2134,7 +2144,8 @@ JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
   length = (*env)->GetArrayLength(env, partial);
   int * pa = (int*)malloc(sizeof(int) * (length + 1));
   pa[length] = NULL;
-  jint* d = (*env)->GetIntArrayElements(env, partial, NULL);
+
+  jint * d = (*env)->GetIntArrayElements(env, partial, NULL);
   for(i = 0; i < length; i++) {
     pa[i] = d[i];
   }
@@ -2167,18 +2178,66 @@ JNIEXPORT void JNICALL Java_Walksat_setNumberOfTries
   numrun = num;  
 }
 
-void setPartialAssignment(int *partial[], int length) {
+reset() {
+partialFlipInc = 0;
+partialFlipAttempt = 0;
+status_flag = 0;            /* value returned from main procedure */
+heuristic = BEST;           /* heuristic to be used */
+numerator = NOVALUE;        /* make random flip with numerator/denominator frequency */
+denominator = 100;
+wp_numerator = NOVALUE;     /* walk probability numerator/denominator */
+wp_denominator = 100;
+numrun = 10;
+cutoff = 100000;
+base_cutoff = 100000;
+target = 0;
+numtry = 0;                 /* total attempts at solutions */
+numsol = NOVALUE;           /* stop after this many tries succeeds */
+superlinear = FALSE;
+makeflag = FALSE;           /* set to true by heuristics that require the make values to be calculated */
+tail = 3;
+printonlysol = FALSE;
+printsolcnf = FALSE;
+printfalse = FALSE;
+printlow = FALSE;
+printhist = FALSE;
+printtrace = FALSE;
+trace_assign = FALSE;
+initoptions = FALSE;
+maxSatClauses = 0;
+totalflip = 0;           /* total number of flips in all tries so far */
+totalsuccessflip = 0;    /* total number of flips in all tries which succeeded so far */
+numsuccesstry = 0;          /* total found solutions */
+integer_sum_x = 0;
+sum_x = 0.0;
+sum_x_squared = 0.0;
+sum_r = 0;
+sum_r_squared = 0.0;
+sum_avgfalse = 0.0;
+sum_std_dev_avgfalse = 0.0;
+number_sampled_runs = 0;
+suc_sum_avgfalse = 0.0;
+suc_sum_std_dev_avgfalse = 0.0;
+suc_number_sampled_runs = 0;
+nonsuc_sum_avgfalse = 0.0;
+nonsuc_sum_std_dev_avgfalse = 0.0;
+nonsuc_number_sampled_runs = 0;
+hamming_flag = FALSE;
+samplefreq = 1;
+}
+
+void setPartialAssignment(int * partial[], int length) {
   int i;
   for(i = 0; i < length; i++) {
     int p = partial[i];
     if(p < 0) {
       atom[-p] = 0;
       partialAssignment[-p] = 1;
-      printf("partial %d -- %d -- %d \n", -p, atom[-p], partialAssignment[-p]);
+      printf("%d = %d -- ", -p, atom[-p]);
     } else {
       atom[p] = 1;
       partialAssignment[p] = 1;
-      printf("partial %d -- %d -- %d \n", p, atom[p], partialAssignment[p]);
+      printf("%d = %d -- ", p, atom[p]);
     }
   }
   partialFlipInc = length / 5;
