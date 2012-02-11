@@ -24,8 +24,6 @@ public class Walksat {
 
   public static native void setNumberOfTries(int tries);
   
-//  public static native void reset();
-
   static {
     System.loadLibrary("walksat");
   }
@@ -41,10 +39,11 @@ public class Walksat {
         int haltLevel = problem.nVars() / 10;
         int numBranches = 1;
         tracing = new DecisionLevelTracing(numBranches, haltLevel);
+        tracing.setTracing(true);
         solver.setSearchListener(tracing);
         ((Solver) solver).setHaltLevel(haltLevel);
         if (problem.isSatisfiable()) {
-          System.out.println("SATISFIABLE");
+          System.out.println("SATISFIABLE - original minisat");
           System.out.println(reader.decode(problem.model()));
         }
       } catch (FileNotFoundException e) {
@@ -64,43 +63,45 @@ public class Walksat {
         // we've reached the time out so now we want to run walk sat on our branch
         if (tracing != null && problem != null) {
           int nextLit = Math.abs(((Solver)solver).getNextBranchLiteral());
-//         ArrayList<int[]> assignments = tracing.getAssignments();
+          ArrayList<int[]> assignments = tracing.getAssignments();
           System.out.println("We are going to branch on " + nextLit);
-//          int[] val = Arrays.copyOf(assignments.get(0), assignments.get(0).length + 1);
+          for(int i = 0; i < assignments.get(0).length; i++) {
+            System.out.print(assignments.get(0)[i] + " ");
+          }
+          System.out.println();
+          int[] val = Arrays.copyOf(assignments.get(0), assignments.get(0).length + 1);
           setNumberOfSolutions(1);
-           		    int[] temp = new int[4];
-           		    for(int i = 1; i <= 4; i++) {
-                               temp[i-1] = i % 2 == 0 ? -i : i;
-                               System.out.print(temp[i-1] + " -- ");
-                             }
-	System.out.println();
-          boolean satisfied = runWalkSat(args[0].toCharArray(), temp, temp.length);
-/*          val[val.length - 1] = -nextLit;
+          val[val.length - 1] = -nextLit;
           boolean satisfied = runWalkSat(args[0].toCharArray(), val, val.length);
           if (satisfied) {
-            System.out.println("SATISFIABLE");
+            System.out.println("SATISFIABLE - first walk sat");
+            System.exit(0);
           }
           double stat0 = getMaxPercentageSatisfiedClauses();
           val[val.length - 1] = nextLit;
           satisfied = runWalkSat(args[0].toCharArray(), val, val.length);
           if (satisfied) {
-            System.out.println("SATISFIABLE");
+            System.out.println("SATISFIABLE - second walk sat");
+            System.exit(0);
           }
           double stat1 = getMaxPercentageSatisfiedClauses();
           System.out.println(stat0 + " -- " + stat1);
-          /*if (stat0 > stat1) {
+          if (stat0 > stat1) {
             val[val.length - 1] = -nextLit;
           }
-          VecInt assumps = new VecInt(val);
           try {
-            if (problem.isSatisfiable(assumps)) {
-              System.out.println("SATISFIABLE");
+            ((Solver)solver).setOrder(new PartialVarOrderHeap(val));
+            ((Solver)solver).setHaltLevel(Integer.MAX_VALUE);
+            tracing.setTracing(false);
+            if (problem.isSatisfiable()) {
+              System.out.println("SATISFIABLE - minisat");
+              System.out.println(reader.decode(problem.model()));
             } else {
               System.out.println("UNSATISFIABLE");
             }
           } catch (TimeoutException f) {
             f.printStackTrace();
-          }*/
+          }
         }
       }
       System.out.println("DONE");
