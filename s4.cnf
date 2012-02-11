@@ -1,0 +1,5 @@
+c Simple test file containing a satisfiable formula w/4 variables and 3 clauses
+p cnf 4 3
+1 2 -3 0
+-2 3 4 0
+-1 -4 0
