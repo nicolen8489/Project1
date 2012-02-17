@@ -15,15 +15,15 @@
  * the provisions above and replace them with the notice and other provisions
  * required by the LGPL. If you do not delete the provisions above, a recipient
  * may use your version of this file under the terms of the EPL or the LGPL.
- * 
+ *
  * Based on the original MiniSat specification from:
- * 
+ *
  * An extensible SAT solver. Niklas Een and Niklas Sorensson. Proceedings of the
  * Sixth International Conference on Theory and Applications of Satisfiability
  * Testing, LNCS 2919, pp 502-518, 2003.
  *
  * See www.minisat.se for the original solver in C++.
- * 
+ *
  *******************************************************************************/
 
 import java.io.FileNotFoundException;
@@ -43,142 +43,139 @@ import org.sat4j.specs.SearchListener;
  */
 public class DecisionLevelTracing implements SearchListener {
 
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
+  /**
+   *
+   */
+  private static final long serialVersionUID = 1L;
 
-	/*
-	 * private final String filename; private PrintStream out;
-	 */
-	private ISolverService service;
-	private ArrayList<int[]> assignments;
-	private int numBranches;
-	private int branchCount;
-	private int haltLevel;
-	private boolean tracing;
+  /*
+   * private final String filename; private PrintStream out;
+   */
+  private ISolverService service;
+  private ArrayList<int[]> assignments;
+  private int numBranches;
+  private int branchCount;
+  private int haltLevel;
+  private boolean tracing;
+  private ArrayList<Integer> nextBranch;
 
-	public DecisionLevelTracing(/* String filename, */int numBranches,
-			int haltLevel) {
-		/* this.filename = filename; */
-		this.numBranches = numBranches;
-		this.haltLevel = haltLevel;
-		branchCount = 0;
-		assignments = new ArrayList<int[]>();
-		tracing = false;
-		/* updateWriter(); */
-	}
-	
-	public void setTracing(boolean tracing) {
-		this.tracing = tracing;
-	}
+  public DecisionLevelTracing(/* String filename, */int numBranches,
+      int haltLevel) {
+    /* this.filename = filename; */
+    this.numBranches = numBranches;
+    this.haltLevel = haltLevel;
+    branchCount = 0;
+    assignments = new ArrayList<int[]>();
+    tracing = false;
+    nextBranch = new ArrayList<Integer>();
+    /* updateWriter(); */
+  }
 
-	/*
-	 * private void updateWriter() { try { out = new PrintStream(new
-	 * FileOutputStream(filename + ".dat")); } catch (FileNotFoundException e) {
-	 * out = System.out; } }
-	 */
+  public void setTracing(boolean tracing) {
+    this.tracing = tracing;
+  }
 
-	public void adding(int p) {
-		// TODO Auto-generated method stub
+  /*
+   * private void updateWriter() { try { out = new PrintStream(new
+   * FileOutputStream(filename + ".dat")); } catch (FileNotFoundException e) {
+   * out = System.out; } }
+   */
 
-	}
+  public void adding(int p) {
+    // TODO Auto-generated method stub
 
-	public void assuming(int p) {
+  }
 
-	}
+  public void assuming(int p) {
 
-	public void backtracking(int p) {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void backtracking(int p) {
+    // TODO Auto-generated method stub
 
-	public void beginLoop() {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void beginLoop() {
+    // TODO Auto-generated method stub
 
-	public void conflictFound(IConstr confl, int dlevel, int trailLevel) {
+  }
 
-	}
+  public void conflictFound(IConstr confl, int dlevel, int trailLevel) {
 
-	public void conflictFound(int p) {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void conflictFound(int p) {
+    // TODO Auto-generated method stub
 
-	public void delete(int[] clause) {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void delete(int[] clause) {
+    // TODO Auto-generated method stub
 
-	public void end(Lbool result) {
-		/* out.close(); */
-	}
+  }
 
-	public void learn(IConstr c) {
-		// TODO Auto-generated method stub
+  public void end(Lbool result) {
+    /* out.close(); */
+  }
 
-	}
+  public void learn(IConstr c) {
+    // TODO Auto-generated method stub
 
-	public void propagating(int p, IConstr reason) {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void propagating(int p, IConstr reason) {
+    // TODO Auto-generated method stub
 
-	public void solutionFound() {
-		// TODO Auto-generated method stub
+  }
 
-	}
+  public void solutionFound() {
+    // TODO Auto-generated method stub
 
-	public void start() {
-		/* updateWriter(); */
-	}
+  }
 
-	public void restarting() {
-		if(tracing) {
-		int decisionLevel = service.currentDecisionLevel();
-		if (decisionLevel == haltLevel) {
-			int[] vals = new int[0];
-			for(int i = 1; i <= decisionLevel; i++) {
-				int[] curVals = service.getLiteralsPropagatedAt(i);
-				int index = vals.length;
-				vals = Arrays.copyOf(vals, vals.length + curVals.length);
-				for(int j = 0; j < curVals.length; j++) {
-					vals[index++] = LiteralsUtils.var(curVals[j]);
-				}
-			}
-			int[] boolVals = new int[vals.length];
-			for (int i = 0; i < vals.length; i++) {
-				int literal = vals[i];
-				Lbool bool = service.truthValue(literal);
-				if (bool == Lbool.TRUE) {
-					boolVals[i] = literal;
-				} else if (bool == Lbool.FALSE) {
-					boolVals[i] = -literal;
-				}
-			}
-			assignments.add(boolVals);
-			branchCount++;
-		}
-		if (branchCount == numBranches) {
-			service.stop();
-		}
-		}
-	}
+  public void start() {
+    /* updateWriter(); */
+  }
 
-	public void backjump(int backjumpLevel) {
-		/* out.println(backjumpLevel); */
-	}
+  public void restarting() {
+    if (tracing) {
+      int decisionLevel = service.currentDecisionLevel();
+      if (decisionLevel == haltLevel) {
+        int[] vals = new int[0];
+        for (int i = 1; i <= decisionLevel; i++) {
+          int[] curVals = service.getLiteralsPropagatedAt(i);
+          int index = vals.length;
+          vals = Arrays.copyOf(vals, vals.length + curVals.length);
+          for (int j = 0; j < curVals.length; j++) {
+            vals[index++] = LiteralsUtils.toDimacs(curVals[j]);
+          }
+        }
+        assignments.add(vals);
+        nextBranch.add(LiteralsUtils.var(service.getNextBranchLiteral()));
+        branchCount++;
+      }
+      if (branchCount == numBranches) {
+        service.stop();
+      }
+    }
+  }
 
-	@Override
-	public void init(ISolverService solverService) {
-		// TODO Auto-generated method stub
-		service = solverService;
-	}
-	
-	public ArrayList<int[]> getAssignments() {
-		return assignments;
-	}
+  public void backjump(int backjumpLevel) {
+    /* out.println(backjumpLevel); */
+  }
+
+  @Override
+  public void init(ISolverService solverService) {
+    // TODO Auto-generated method stub
+    service = solverService;
+  }
+
+  public ArrayList<int[]> getAssignments() {
+    return assignments;
+  }
+
+  public ArrayList<Integer> getNextBranches() {
+    return nextBranch;
+  }
 
 }
