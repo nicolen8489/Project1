@@ -10,18 +10,10 @@ extern "C" {
 /*
  * Class:     Walksat
  * Method:    runWalkSat
- * Signature: ([C[II)Z
+ * Signature: ([C[IILDataInfo;)Z
  */
 JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
-  (JNIEnv *, jclass, jcharArray, jintArray, jint);
-
-/*
- * Class:     Walksat
- * Method:    getMaxPercentageSatisfiedClauses
- * Signature: ()D
- */
-JNIEXPORT jdouble JNICALL Java_Walksat_getMaxPercentageSatisfiedClauses
-  (JNIEnv *, jclass);
+  (JNIEnv *, jclass, jcharArray, jintArray, jint, jobject);
 
 /*
  * Class:     Walksat
