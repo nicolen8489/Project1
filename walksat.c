@@ -122,6 +122,11 @@ long ticks_per_second;
 enum heuristics { RANDOM, BEST, TABU, NOVELTY, RNOVELTY, NOVELTY_PLUS, 
 RNOVELTY_PLUS};
 
+// nicolen
+struct info {
+  double maxSatClausePercent;
+} dataInfo;
+
 #define NOVALUE -1
 #define INIT_PARTIAL 1
 #define HISTMAX 101		/* length of histogram of tail */
@@ -263,8 +268,6 @@ unsigned int seed;  /* Sometimes defined as an unsigned long int */
 #endif
 
 /* Statistics */
-// nicolen
-int maxSatClauses = 0;
 double expertime;
 BIGINT flips_this_solution;
 long int lowbad;		/* lowest number of bad clauses during try */
@@ -362,7 +365,7 @@ double elapsed_seconds(void);
 int countunsat(void);
 void scanone(int argc, char *argv[], int i, int *varptr);
 void scanonell(int argc, char *argv[], int i, BIGINT *varptr);
-void init(char initfile[], int initoptions);
+void init(char initfile[], int initoptions, int partial[], int length);
 void initprob(void); 
 void flipatom(int toflip);
 
@@ -412,37 +415,25 @@ int runWalksat(int argc, char *argv[], int partialAssignment[], int length)
     //print_parameters(argc, argv);
     initprob();
     initialize_statistics();
-    printf("test5 = %d", numtry);
     print_statistics_header();
     signal(SIGINT, handle_interrupt);
     abort_flag = FALSE;
     (void) elapsed_seconds();
-    printf("%d -- %d -- %d -- %d -- %d", abort_flag, numsuccesstry, numsol, numtry, numrun);
 
     while (! abort_flag && numsuccesstry < numsol && numtry < numrun) {
 	numtry++;
-	init(initfile, initoptions);
+	init(initfile, initoptions, partialAssignment, length);
 	update_statistics_start_try();
 	numflip = 0;
-        if(length > 0) {
-        // nicolen
-          setPartialAssignment(partialAssignment, length);
-        }
-        printf("atoms %d %d %d %d", atom[1], atom[2], atom[3], atom[4]);
 	  
 	//if (superlinear) cutoff = base_cutoff * super(numtry);
         cutoff = 10;
-
 	while((numfalse > target) && (numflip < cutoff)) {
-        printf("atoms %d %d %d %d", atom[1], atom[2], atom[3], atom[4]);
 	    //print_statistics_start_flip();
 	    numflip++;
             int toflip = (pickcode[heuristic])();
-            printf("val - %d ", atom[toflip]);
 	    //flipatom((pickcode[heuristic])());
             flipatom(toflip);
-            printf("flip %d - %d ", toflip, numflip); 
-            printf("val - %d \n", atom[toflip]);
 	    update_statistics_end_flip();
 	}
 	update_and_print_statistics_end_try();
@@ -837,8 +828,8 @@ void update_statistics_end_flip(void)
 	}
     }
     // nicolen
-    if (numclause - numfalse > maxSatClauses) {
-      maxSatClauses = numclause - numfalse;
+    if (((numclause - numfalse)/numclause) * 100 > dataInfo.maxSatClausePercent) {
+      dataInfo.maxSatClausePercent = ((numclause - numfalse) / numclause) * 100;
     }
 }
 
@@ -1037,7 +1028,7 @@ void read_hamming_file(char initfile[])
 }
 
 
-void init(char initfile[], int initoptions)
+void init(char initfile[], int initoptions, int partialAssignment[], int length)
 {
     int i;
     int j;
@@ -1067,6 +1058,9 @@ void init(char initfile[], int initoptions)
     else {
 	for(i = 1;i < numatom+1;i++)
 	  atom[i] = random()%2;
+    }
+    if(length > 0) {
+      setPartialAssignment(partialAssignment, length);
     }
 
     if (initfile[0]){
@@ -1417,7 +1411,6 @@ void flipatom(int toflip)
 */
 void flipatom(int toflip)
 {
-//   printf("test partial - %d - %d", toflip, partialAssignment[toflip]);
    if(partialAssignment[toflip]) {
      partialFlipAttempt++;
      if(partialFlipAttempt % partialFlipInc > 0) {
@@ -1425,7 +1418,6 @@ void flipatom(int toflip)
      }
      return;
    }
-   printf("continuing outside of if");
     int i, j;			
     int toenforce;		
     register int cli;
@@ -2127,7 +2119,7 @@ save_solution(void)
 
 // nicolen
 JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
-  (JNIEnv * env, jclass class, jcharArray filename, jintArray partial, jint numPartialLits) {
+  (JNIEnv * env, jclass class, jcharArray filename, jintArray partial, jint numPartialLits, jobject infoObj) {
 //JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat (JNIEnv * env, jclass class, jcharArray filename) {
 
   int length = (*env)->GetArrayLength(env, filename);
@@ -2160,13 +2152,22 @@ JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
   runWalksat(3, argv, pa, numPartialLits);
   free(file);
   free(pa);
+
+  jclass infoClass;
+  jfieldID field;
+
+  infoClass = (*env)->GetObjectClass(env, infoObj);
+
+  field = (*env)->GetFieldID(env, infoClass, "maxSatClausePercent", "D");
+  (*env)->SetDoubleField(env, infoObj, field, dataInfo.maxSatClausePercent);
+
   return numsuccesstry > 0;
 }
 
-JNIEXPORT jdouble JNICALL Java_Walksat_getMaxPercentageSatisfiedClauses
+/*JNIEXPORT jdouble JNICALL Java_Walksat_getMaxPercentageSatisfiedClauses
   (JNIEnv * env, jclass class) {
   return (double)maxSatClauses / numclause * 100;
-}
+}*/
 
 JNIEXPORT void JNICALL Java_Walksat_setNumberOfSolutions
   (JNIEnv * env, jclass class, jint num) {
@@ -2187,12 +2188,10 @@ numerator = NOVALUE;        /* make random flip with numerator/denominator frequ
 denominator = 100;
 wp_numerator = NOVALUE;     /* walk probability numerator/denominator */
 wp_denominator = 100;
-numrun = 10;
 cutoff = 100000;
 base_cutoff = 100000;
 target = 0;
 numtry = 0;                 /* total attempts at solutions */
-numsol = NOVALUE;           /* stop after this many tries succeeds */
 superlinear = FALSE;
 makeflag = FALSE;           /* set to true by heuristics that require the make values to be calculated */
 tail = 3;
@@ -2204,7 +2203,7 @@ printhist = FALSE;
 printtrace = FALSE;
 trace_assign = FALSE;
 initoptions = FALSE;
-maxSatClauses = 0;
+dataInfo.maxSatClausePercent = 0;
 totalflip = 0;           /* total number of flips in all tries so far */
 totalsuccessflip = 0;    /* total number of flips in all tries which succeeded so far */
 numsuccesstry = 0;          /* total found solutions */
@@ -2233,11 +2232,9 @@ void setPartialAssignment(int * partial[], int length) {
     if(p < 0) {
       atom[-p] = 0;
       partialAssignment[-p] = 1;
-      printf("%d = %d -- ", -p, atom[-p]);
     } else {
       atom[p] = 1;
       partialAssignment[p] = 1;
-      printf("%d = %d -- ", p, atom[p]);
     }
   }
   partialFlipInc = length / 5;
@@ -2245,3 +2242,4 @@ void setPartialAssignment(int * partial[], int length) {
     partialFlipInc = 2;
   }
 }
+
