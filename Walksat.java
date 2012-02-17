@@ -16,9 +16,7 @@ import java.io.FileNotFoundException;
 
 public class Walksat {
 
-  public static native boolean runWalkSat(char[] args, int[] partialAssignment, int numPartialLiterals);
-
-  public static native double getMaxPercentageSatisfiedClauses();
+  public static native boolean runWalkSat(char[] args, int[] partialAssignment, int numPartialLiterals, DataInfo dataInfo);
 
   public static native void setNumberOfSolutions(int num);
 
@@ -62,8 +60,9 @@ public class Walksat {
         // TODO Auto-generated catch block
         // we've reached the time out so now we want to run walk sat on our branch
         if (tracing != null && problem != null) {
-          int nextLit = Math.abs(((Solver)solver).getNextBranchLiteral());
+          DataInfo dataInfo = new DataInfo();
           ArrayList<int[]> assignments = tracing.getAssignments();
+          int nextLit = tracing.getNextBranches().get(0); 
           System.out.println("We are going to branch on " + nextLit);
           for(int i = 0; i < assignments.get(0).length; i++) {
             System.out.print(assignments.get(0)[i] + " ");
@@ -72,19 +71,19 @@ public class Walksat {
           int[] val = Arrays.copyOf(assignments.get(0), assignments.get(0).length + 1);
           setNumberOfSolutions(1);
           val[val.length - 1] = -nextLit;
-          boolean satisfied = runWalkSat(args[0].toCharArray(), val, val.length);
+          boolean satisfied = runWalkSat(args[0].toCharArray(), val, val.length, dataInfo);
           if (satisfied) {
             System.out.println("SATISFIABLE - first walk sat");
             System.exit(0);
           }
-          double stat0 = getMaxPercentageSatisfiedClauses();
+          double stat0 = dataInfo.getMaxSatClausePercent();
           val[val.length - 1] = nextLit;
-          satisfied = runWalkSat(args[0].toCharArray(), val, val.length);
+          satisfied = runWalkSat(args[0].toCharArray(), val, val.length, dataInfo);
           if (satisfied) {
             System.out.println("SATISFIABLE - second walk sat");
             System.exit(0);
           }
-          double stat1 = getMaxPercentageSatisfiedClauses();
+          double stat1 = dataInfo.getMaxSatClausePercent();
           System.out.println(stat0 + " -- " + stat1);
           if (stat0 > stat1) {
             val[val.length - 1] = -nextLit;
@@ -109,5 +108,5 @@ public class Walksat {
       System.out.println("A cnf file must be passed to run.");
     }
   }
-
 }
+
