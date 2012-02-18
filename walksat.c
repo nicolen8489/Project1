@@ -123,7 +123,10 @@ enum heuristics { RANDOM, BEST, TABU, NOVELTY, RNOVELTY, NOVELTY_PLUS,
 RNOVELTY_PLUS};
 
 // nicolen
+// struct used to pass data back to
+// our Java implementation through JNI
 struct info {
+  // the maximum number of satisfied clauses in a run
   double maxSatClausePercent;
 } dataInfo;
 
@@ -152,7 +155,12 @@ int numatom;
 int numclause;
 int numliterals;
 // nicolen
+// the number of times we allow an attempt to flip
+// a partial assigned variable before we
+// increment the number of flips
 int partialFlipInc = 0;
+// the number of attempts to flip a variable
+// that is in the partial assignment
 int partialFlipAttempt = 0;
 
 #ifdef DYNAMIC
@@ -191,6 +199,10 @@ int makecount[MAXATOM+1];	/* number of clauses that become sat if var if flipped
 int numfalse;			/* number of false clauses */
 
 // nicolen
+// a list of variables we have assignments for and want to maintain
+// partialAssignment[abs(literal)] = 1 means we have an assignment
+// to maintain partialAssignment[abs(literal)] = 0 means the
+// variable can be flipped during run
 int partialAssignment[MAXATOM+1];
 
 
@@ -395,7 +407,9 @@ void print_sol_cnf(void);
 /************************************/
 
 // nicolen
-//int main(int argc,char *argv[])
+// changed method signature so that we
+// can call it to run when we want to
+// original: int main(int argc,char *argv[])
 int runWalksat(int argc, char *argv[], int partialAssignment[], int length) 
 {
    reset();
@@ -828,6 +842,9 @@ void update_statistics_end_flip(void)
 	}
     }
     // nicolen
+    // we want to keep track of the max number of satisified clauses
+    // we are using this in our Java code to decide which polarity
+    // to set a variable to
     if (((numclause - numfalse)/numclause) * 100 > dataInfo.maxSatClausePercent) {
       dataInfo.maxSatClausePercent = ((numclause - numfalse) / numclause) * 100;
     }
@@ -1411,6 +1428,15 @@ void flipatom(int toflip)
 */
 void flipatom(int toflip)
 {
+   // nicolen
+   // if we've chosen a variable of the partial assignment
+   // we don't want to flip it, we want to preserve it's
+   // initial value
+   // we don't want the number of flips to increase
+   // when we've chosen a variable that we're not flipping
+   // except we may keep choosing one so after we've
+   // chosen a certain number of nonflippable variables
+   // we will allow the number of flips to be incremented
    if(partialAssignment[toflip]) {
      partialFlipAttempt++;
      if(partialFlipAttempt % partialFlipInc > 0) {
@@ -2118,9 +2144,13 @@ save_solution(void)
 }
 
 // nicolen
+/*
+ * JNI call
+ * Allows a call to run walksat from java
+ * parses the cnf file name
+ */
 JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
   (JNIEnv * env, jclass class, jcharArray filename, jintArray partial, jint numPartialLits, jobject infoObj) {
-//JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat (JNIEnv * env, jclass class, jcharArray filename) {
 
   int length = (*env)->GetArrayLength(env, filename);
   char * file = (char*)malloc(sizeof(char) * (length + 1));
@@ -2164,67 +2194,86 @@ JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
   return numsuccesstry > 0;
 }
 
-/*JNIEXPORT jdouble JNICALL Java_Walksat_getMaxPercentageSatisfiedClauses
-  (JNIEnv * env, jclass class) {
-  return (double)maxSatClauses / numclause * 100;
-}*/
-
+// nicolen
+/*
+ * JNI call
+ * set the number of solutions to find before walksat stops
+ */
 JNIEXPORT void JNICALL Java_Walksat_setNumberOfSolutions
   (JNIEnv * env, jclass class, jint num) {
   numsol = num;
 }
 
+// nicolen
+/*
+ * JNI call
+ * set the number of tries before walksat stops
+ */
 JNIEXPORT void JNICALL Java_Walksat_setNumberOfTries
   (JNIEnv * env, jclass class, jint num) {
   numrun = num;  
 }
 
+// nicolen
+/*
+ * reset the variables for another run of walksat
+ */
 reset() {
-partialFlipInc = 0;
-partialFlipAttempt = 0;
-status_flag = 0;            /* value returned from main procedure */
-heuristic = BEST;           /* heuristic to be used */
-numerator = NOVALUE;        /* make random flip with numerator/denominator frequency */
-denominator = 100;
-wp_numerator = NOVALUE;     /* walk probability numerator/denominator */
-wp_denominator = 100;
-cutoff = 100000;
-base_cutoff = 100000;
-target = 0;
-numtry = 0;                 /* total attempts at solutions */
-superlinear = FALSE;
-makeflag = FALSE;           /* set to true by heuristics that require the make values to be calculated */
-tail = 3;
-printonlysol = FALSE;
-printsolcnf = FALSE;
-printfalse = FALSE;
-printlow = FALSE;
-printhist = FALSE;
-printtrace = FALSE;
-trace_assign = FALSE;
-initoptions = FALSE;
-dataInfo.maxSatClausePercent = 0;
-totalflip = 0;           /* total number of flips in all tries so far */
-totalsuccessflip = 0;    /* total number of flips in all tries which succeeded so far */
-numsuccesstry = 0;          /* total found solutions */
-integer_sum_x = 0;
-sum_x = 0.0;
-sum_x_squared = 0.0;
-sum_r = 0;
-sum_r_squared = 0.0;
-sum_avgfalse = 0.0;
-sum_std_dev_avgfalse = 0.0;
-number_sampled_runs = 0;
-suc_sum_avgfalse = 0.0;
-suc_sum_std_dev_avgfalse = 0.0;
-suc_number_sampled_runs = 0;
-nonsuc_sum_avgfalse = 0.0;
-nonsuc_sum_std_dev_avgfalse = 0.0;
-nonsuc_number_sampled_runs = 0;
-hamming_flag = FALSE;
-samplefreq = 1;
+  partialFlipInc = 0;
+  partialFlipAttempt = 0;
+  status_flag = 0;            /* value returned from main procedure */
+  heuristic = BEST;           /* heuristic to be used */
+  numerator = NOVALUE;        /* make random flip with numerator/denominator frequency */
+  denominator = 100;
+  wp_numerator = NOVALUE;     /* walk probability numerator/denominator */
+  wp_denominator = 100;
+  cutoff = 100000;
+  base_cutoff = 100000;
+  target = 0;
+  numtry = 0;                 /* total attempts at solutions */
+  superlinear = FALSE;
+  makeflag = FALSE;           /* set to true by heuristics that require the make values to be calculated */
+  tail = 3;
+  printonlysol = FALSE;
+  printsolcnf = FALSE;
+  printfalse = FALSE;
+  printlow = FALSE;
+  printhist = FALSE;
+  printtrace = FALSE;
+  trace_assign = FALSE;
+  initoptions = FALSE;
+  dataInfo.maxSatClausePercent = 0;
+  totalflip = 0;           /* total number of flips in all tries so far */
+  totalsuccessflip = 0;    /* total number of flips in all tries which succeeded so far */
+  numsuccesstry = 0;          /* total found solutions */
+  integer_sum_x = 0;
+  sum_x = 0.0;
+  sum_x_squared = 0.0;
+  sum_r = 0;
+  sum_r_squared = 0.0;
+  sum_avgfalse = 0.0;
+  sum_std_dev_avgfalse = 0.0;
+  number_sampled_runs = 0;
+  suc_sum_avgfalse = 0.0;
+  suc_sum_std_dev_avgfalse = 0.0;
+  suc_number_sampled_runs = 0;
+  nonsuc_sum_avgfalse = 0.0;
+  nonsuc_sum_std_dev_avgfalse = 0.0;
+  nonsuc_number_sampled_runs = 0;
+  hamming_flag = FALSE;
+  samplefreq = 1;
 }
 
+// nicolen
+/*
+ * Allows the user to set a partial assignment which
+ * will be maintained throughout the runs of Walksat.
+ * The variables set in the partial assignment will
+ * not be able to be flipped.
+ * @param partial - the list of partial assignments
+ *    -val = false variable, val = true variable
+ * @param length - the number of variables in partial
+ */
 void setPartialAssignment(int * partial[], int length) {
   int i;
   for(i = 0; i < length; i++) {
@@ -2242,4 +2291,3 @@ void setPartialAssignment(int * partial[], int length) {
     partialFlipInc = 2;
   }
 }
-
