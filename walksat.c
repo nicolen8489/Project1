@@ -127,11 +127,15 @@ RNOVELTY_PLUS};
 // our Java implementation through JNI
 struct info {
   // the maximum number of satisfied clauses in a run
-  double maxSatClausePercent;
+  int maxSatClause;
+  int localMinCount;
+  int satClausesAtLocalMinSum;
 } dataInfo;
 
 #define NOVALUE -1
 #define INIT_PARTIAL 1
+#define INIT_ASSIGN_FILE 2
+#define INIT_ASSIGN_DEL 3
 #define HISTMAX 101		/* length of histogram of tail */
 
 #define Var(CLAUSE, POSITION) (ABS(clause[CLAUSE][POSITION]))
@@ -265,6 +269,8 @@ char outfile[1024] = { 0 };
 /* Initialization options */
 
 char initfile[100] = { 0 };
+// nicolen
+int partialDel[MAXATOM + 1];
 int initoptions = FALSE;
 
 /* Randomization */
@@ -377,7 +383,8 @@ double elapsed_seconds(void);
 int countunsat(void);
 void scanone(int argc, char *argv[], int i, int *varptr);
 void scanonell(int argc, char *argv[], int i, BIGINT *varptr);
-void init(char initfile[], int initoptions, int partial[], int length);
+//void init(char initfile[], int initoptions, int partial[], int length);
+void init(char initfile[], int initoptions);
 void initprob(void); 
 void flipatom(int toflip);
 
@@ -407,10 +414,19 @@ void print_sol_cnf(void);
 /************************************/
 
 // nicolen
+// added a main method so we can still call
+// the modifications from the command line
+// it simply passes the buck
+int main(int argc, char * argv[]) {
+  runWalksat(argc, argv);
+}
+
+// nicolen
 // changed method signature so that we
 // can call it to run when we want to
-// original: int main(int argc,char *argv[])
-int runWalksat(int argc, char *argv[], int partialAssignment[], int length) 
+//int main(int argc,char *argv[])
+//int runWalksat(int argc, char *argv[], int partialAssignment[], int length) 
+int runWalksat(int argc, char * argv[])
 {
    reset();
 #if UNIX 
@@ -436,7 +452,8 @@ int runWalksat(int argc, char *argv[], int partialAssignment[], int length)
 
     while (! abort_flag && numsuccesstry < numsol && numtry < numrun) {
 	numtry++;
-	init(initfile, initoptions, partialAssignment, length);
+	//init(initfile, initoptions, partialAssignment, length);
+        init(initfile, initoptions);
 	update_statistics_start_try();
 	numflip = 0;
 	  
@@ -458,9 +475,7 @@ int runWalksat(int argc, char *argv[], int partialAssignment[], int length)
 }
 
 
-// nicolen
 void parse_parameters(int argc,char *argv[])
-//void parse_parameters(int argc,char argv[])
 {
     int i;
     int temp;
@@ -524,6 +539,28 @@ void parse_parameters(int argc,char *argv[])
         }
 	else if (strcmp(argv[i],"-init") == 0  && i < argc-1)
 	    sscanf(argv[++i], " %s", initfile);
+        // nicolen added the functionality to take a file with partial assignment
+	else if (strcmp(argv[i],"-assignFile") == 0  && i < argc-1) {
+            initoptions = INIT_ASSIGN_FILE;
+            sscanf(argv[++i], " %s", initfile);
+        }
+	// nicolen added the functionality to take a delimited list for a partial assignment
+	// 1:-2:3:-4:5:-6....
+	else if (strcmp(argv[i],"-assignDel") == 0  && i < argc-1) {
+            initoptions = INIT_ASSIGN_DEL;
+            char delimited[MAXATOM+1]={0};;
+            sscanf(argv[++i], " %s", delimited);
+            char * val = strtok(delimited, ":");
+            int j = 0;
+            while(val != NULL) {
+              int lit = atoi(val);
+              partialDel[j++]=lit;
+              printf("%d\n", lit);
+              val = strtok(NULL, ":");
+            }
+ 
+           
+        }
 	else if (strcmp(argv[i],"-hamming") == 0  && i < argc-3){
 	    sscanf(argv[++i], " %s", hamming_target_file);
 	    sscanf(argv[++i], " %s", hamming_data_file);
@@ -630,9 +667,7 @@ void parse_parameters(int argc,char *argv[])
   }
 }
 
-// nicolen
 void print_parameters(int argc, char * argv[])
-//void print_parameters(int argc, char argv[])
 {
   int i;
 
@@ -845,8 +880,8 @@ void update_statistics_end_flip(void)
     // we want to keep track of the max number of satisified clauses
     // we are using this in our Java code to decide which polarity
     // to set a variable to
-    if (((numclause - numfalse)/numclause) * 100 > dataInfo.maxSatClausePercent) {
-      dataInfo.maxSatClausePercent = ((numclause - numfalse) / numclause) * 100;
+    if (numclause - numfalse > dataInfo.maxSatClause) {
+      dataInfo.maxSatClause = (numclause - numfalse);
     }
 }
 
@@ -1045,7 +1080,8 @@ void read_hamming_file(char initfile[])
 }
 
 
-void init(char initfile[], int initoptions, int partialAssignment[], int length)
+//void init(char initfile[], int initoptions, int partialAssignment[], int length)
+void init(char initfile[], int initoptions) 
 {
     int i;
     int j;
@@ -1067,8 +1103,8 @@ void init(char initfile[], int initoptions, int partialAssignment[], int length)
 	  breakcount[i] = 0;
 	  makecount[i] = 0;
       }
-
-    if (initfile[0] && initoptions!=INIT_PARTIAL){
+    // nicolen added check for init assign, we want to randomly assign values
+    if (initfile[0] && initoptions!=INIT_PARTIAL && initoptions != INIT_ASSIGN_FILE && initoptions != INIT_ASSIGN_DEL){
 	for(i = 1;i < numatom+1;i++)
 	  atom[i] = 0;
     }
@@ -1076,9 +1112,23 @@ void init(char initfile[], int initoptions, int partialAssignment[], int length)
 	for(i = 1;i < numatom+1;i++)
 	  atom[i] = random()%2;
     }
-    if(length > 0) {
-      setPartialAssignment(partialAssignment, length);
-    }
+
+    // nicolen
+    if(initoptions == INIT_ASSIGN_DEL) {
+      int i = 0;
+      int lit = partialDel[i++];
+      while(lit != 0) {
+        if (lit<0)  {
+          atom[-lit]=0;
+          partialAssignment[-lit] = 1;
+        }
+        else {
+          atom[lit]=1;
+          partialAssignment[lit] = 1;
+        }
+        lit = partialDel[i++];
+      }
+    } else {
 
     if (initfile[0]){
 	if ((infile = fopen(initfile, "r")) == NULL){
@@ -1092,14 +1142,29 @@ void init(char initfile[], int initoptions, int partialAssignment[], int length)
 		fprintf(stderr, "Bad init file %s\n", initfile);
 		exit(1);
 	    }
-	    if (lit<0) atom[-lit]=0;
-	    else atom[lit]=1;
+	    if (lit<0)  {
+              atom[-lit]=0;
+              // nicolen we want to preserve partial assignments
+	      // when we use init_assign
+              if(initoptions == INIT_ASSIGN_FILE) {
+                partialAssignment[-lit] = 1;
+              }
+            }
+	    else {
+              atom[lit]=1;
+              // nicolen we want to preserve partial assignments
+	      // when we use init_assign
+              if(initoptions == INIT_ASSIGN_FILE) {
+                partialAssignment[lit] = 1;
+              }
+            }
 	}
 	if (i==0){
 	    fprintf(stderr, "Bad init file %s\n", initfile);
 	    exit(1);
 	}
 	fclose(infile);
+    }
     }
 
     /* Initialize breakcount and makecount in the following: */
@@ -1439,11 +1504,12 @@ void flipatom(int toflip)
    // we will allow the number of flips to be incremented
    if(partialAssignment[toflip]) {
      partialFlipAttempt++;
-     if(partialFlipAttempt % partialFlipInc > 0) {
+     if(partialFlipAttempt == partialFlipInc) {
        numflip--;
      }
      return;
    }
+    partialFlipAttempt = 0;
     int i, j;			
     int toenforce;		
     register int cli;
@@ -1717,6 +1783,8 @@ int pickbest(void)
     }
 
     if (bestvalue>0 && (random()%denominator < numerator))
+      dataInfo.localMinCount++;
+      dataInfo.satClausesAtLocalMinSum = dataInfo.satClausesAtLocalMinSum + (numclause - numfalse);
       return ABS(clause[tofix][random()%clausesize]);
 
     if (numbest == 1) return best[0];
@@ -2149,21 +2217,33 @@ save_solution(void)
  * Allows a call to run walksat from java
  * parses the cnf file name
  */
+/*JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
+  (JNIEnv * env, jclass class, jcharArray filename, jintArray partial, jint numPartialLits, jobject infoObj) {*/
 JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
-  (JNIEnv * env, jclass class, jcharArray filename, jintArray partial, jint numPartialLits, jobject infoObj) {
+  (JNIEnv * env, jclass calss, jcharArray cnfFilename, jcharArray partialFilename, jobject infoObj) {
 
-  int length = (*env)->GetArrayLength(env, filename);
-  char * file = (char*)malloc(sizeof(char) * (length + 1));
-  file[length] = NULL;
+  int length = (*env)->GetArrayLength(env, cnfFilename);
+  char * cnfFile = (char*)malloc(sizeof(char) * (length + 1));
+  cnfFile[length] = NULL;
   
-  jchar* c = (*env)->GetCharArrayElements(env, filename, NULL);
+  jchar* c = (*env)->GetCharArrayElements(env, cnfFilename, NULL);
   int i;
   for(i = 0; i < length; i++) {
-    file[i] = c[i];
+    cnfFile[i] = c[i];
   }
-  (*env)->ReleaseCharArrayElements(env, filename, c, 0);
+  (*env)->ReleaseCharArrayElements(env, cnfFilename, c, 0);
   
-  length = (*env)->GetArrayLength(env, partial);
+  length = (*env)->GetArrayLength(env, partialFilename);
+  char * partialFile = (char*)malloc(sizeof(char) * (length + 1));
+  partialFile[length] = NULL;
+  
+  jchar* d = (*env)->GetCharArrayElements(env, partialFilename, NULL);
+  for(i = 0; i < length; i++) {
+    partialFile[i] = d[i];
+  }
+  (*env)->ReleaseCharArrayElements(env, partialFilename, d, 0);
+  
+/*  length = (*env)->GetArrayLength(env, partial);
   int * pa = (int*)malloc(sizeof(int) * (length + 1));
   pa[length] = NULL;
 
@@ -2171,25 +2251,35 @@ JNIEXPORT jboolean JNICALL Java_Walksat_runWalkSat
   for(i = 0; i < length; i++) {
     pa[i] = d[i];
   }
-  (*env)->ReleaseIntArrayElements(env, partial, d, 0);
+  (*env)->ReleaseIntArrayElements(env, partial, d, 0);*/
   
-  char * argv[4];
+  char * argv[3];
   argv[0] = "walksat";
   argv[1] = "-sol";
-  argv[2] = file;
-  argv[3] = NULL;
+  argv[2] = "-assign";
+  argv[3] = partialFile;
+  argv[4] = cnfFile;
+  argv[5] = NULL;
   
-  runWalksat(3, argv, pa, numPartialLits);
-  free(file);
-  free(pa);
+//  runWalksat(2, argv, pa, numPartialLits);
+  runWalksat(5, argv);
+  free(cnfFile);
+  free(partialFile);
+//  free(pa);
 
   jclass infoClass;
   jfieldID field;
 
   infoClass = (*env)->GetObjectClass(env, infoObj);
 
-  field = (*env)->GetFieldID(env, infoClass, "maxSatClausePercent", "D");
-  (*env)->SetDoubleField(env, infoObj, field, dataInfo.maxSatClausePercent);
+  field = (*env)->GetFieldID(env, infoClass, "maxSatClause", "I");
+  (*env)->SetIntField(env, infoObj, field, dataInfo.maxSatClause);
+
+  field = (*env)->GetFieldID(env, infoClass, "localMinCount", "I");
+  (*env)->SetIntField(env, infoObj, field, dataInfo.localMinCount);
+
+  field = (*env)->GetFieldID(env, infoClass, "localMinSatClauseSum", "I");
+  (*env)->SetIntField(env, infoObj, field, dataInfo.satClausesAtLocalMinSum);
 
   return numsuccesstry > 0;
 }
@@ -2242,7 +2332,9 @@ reset() {
   printtrace = FALSE;
   trace_assign = FALSE;
   initoptions = FALSE;
-  dataInfo.maxSatClausePercent = 0;
+  dataInfo.maxSatClause = 0;
+  dataInfo.localMinCount = 0;
+  dataInfo.satClausesAtLocalMinSum = 0;
   totalflip = 0;           /* total number of flips in all tries so far */
   totalsuccessflip = 0;    /* total number of flips in all tries which succeeded so far */
   numsuccesstry = 0;          /* total found solutions */
@@ -2274,7 +2366,7 @@ reset() {
  *    -val = false variable, val = true variable
  * @param length - the number of variables in partial
  */
-void setPartialAssignment(int * partial[], int length) {
+/*void setPartialAssignment(int * partial[], int length) {
   int i;
   for(i = 0; i < length; i++) {
     int p = partial[i];
@@ -2290,4 +2382,4 @@ void setPartialAssignment(int * partial[], int length) {
   if(partialFlipInc == 0) {
     partialFlipInc = 2;
   }
-}
+}*/
